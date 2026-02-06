@@ -22,10 +22,10 @@ A comprehensive skill and toolkit for configuring OpenClaw nodes with Tailscale 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/openclaw-node-setup.git
+git clone https://github.com/mathhyphen/openclaw-node-skill.git
 
 # Or install as OpenClaw skill
-openclaw skills install github.com/yourusername/openclaw-node-setup
+openclaw skills install github.com/mathhyphen/openclaw-node-skill
 ```
 
 ### Setup Steps

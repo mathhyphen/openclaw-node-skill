@@ -22,10 +22,10 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/openclaw-node-setup.git
+git clone https://github.com/mathhyphen/openclaw-node-skill.git
 
 # 或作为 OpenClaw skill 安装
-openclaw skills install github.com/yourusername/openclaw-node-setup
+openclaw skills install github.com/mathhyphen/openclaw-node-skill
 ```
 
 ### 配置步骤
