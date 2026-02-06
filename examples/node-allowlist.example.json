@@ -1,0 +1,74 @@
+{
+  "_comment": "Exec approvals configuration for OpenClaw Node - Place this file at ~/.openclaw/exec-approvals.json",
+  "version": 1,
+  "defaults": {
+    "security": "allowlist",
+    "ask": "off"
+  },
+  "agents": {
+    "main": {
+      "security": "allowlist",
+      "ask": "off",
+      "allowlist": [
+        // System information commands
+        {"pattern": "/usr/bin/uname"},
+        {"pattern": "/usr/bin/hostname"},
+        {"pattern": "/usr/bin/whoami"},
+        {"pattern": "/usr/bin/uptime"},
+        
+        // File and directory commands
+        {"pattern": "/usr/bin/ls"},
+        {"pattern": "/usr/bin/cat"},
+        {"pattern": "/usr/bin/pwd"},
+        {"pattern": "/usr/bin/find"},
+        
+        // Process commands
+        {"pattern": "/usr/bin/ps"},
+        {"pattern": "/usr/bin/top"},
+        {"pattern": "/usr/bin/htop"},
+        
+        // Disk and memory commands
+        {"pattern": "/usr/bin/df"},
+        {"pattern": "/usr/bin/du"},
+        {"pattern": "/usr/bin/free"},
+        
+        // Text processing
+        {"pattern": "/usr/bin/echo"},
+        {"pattern": "/usr/bin/grep"},
+        {"pattern": "/usr/bin/awk"},
+        {"pattern": "/usr/bin/sed"},
+        {"pattern": "/usr/bin/wc"},
+        {"pattern": "/usr/bin/sort"},
+        {"pattern": "/usr/bin/uniq"},
+        {"pattern": "/usr/bin/head"},
+        {"pattern": "/usr/bin/tail"},
+        {"pattern": "/usr/bin/cut"},
+        {"pattern": "/usr/bin/tr"},
+        
+        // Network commands
+        {"pattern": "/usr/bin/curl"},
+        {"pattern": "/usr/bin/wget"},
+        {"pattern": "/usr/bin/ping"},
+        {"pattern": "/usr/bin/netstat"},
+        {"pattern": "/usr/bin/ss"},
+        {"pattern": "/usr/bin/ip"},
+        
+        // Development tools
+        {"pattern": "/usr/bin/git"},
+        {"pattern": "/usr/bin/docker"},
+        {"pattern": "/usr/bin/python3"},
+        {"pattern": "/usr/bin/pip3"},
+        {"pattern": "/usr/bin/node"},
+        {"pattern": "/usr/bin/npm"},
+        {"pattern": "/usr/bin/nvm"},
+        
+        // Wildcard patterns (use with caution)
+        // These allow all commands in /bin and /usr/bin
+        // Note: This does NOT include /sbin or /usr/sbin where dangerous
+        // commands like 'rm', 'dd', 'mkfs' typically reside
+        {"pattern": "/bin/*"},
+        {"pattern": "/usr/bin/*"}
+      ]
+    }
+  }
+}

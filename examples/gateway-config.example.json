@@ -1,0 +1,43 @@
+# Example OpenClaw Gateway Configuration
+# Copy this file to your OpenClaw config directory and customize
+
+{
+  // Gateway configuration
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "auth": {
+      "mode": "password",
+      // IMPORTANT: Change this to a strong, unique password!
+      // Use environment variable: "password": "${OPENCLAW_GATEWAY_PASSWORD}"
+      "password": "CHANGE_THIS_PASSWORD"
+    },
+    "tailscale": {
+      "mode": "off"
+    },
+    "nodes": {
+      "allowCommands": ["*"]
+    }
+  },
+  
+  // Tool execution configuration
+  "tools": {
+    "exec": {
+      // Run commands on connected nodes
+      "host": "node",
+      // Use allowlist for security
+      "security": "allowlist"
+    }
+  },
+  
+  // Channel configuration (example: Telegram)
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "groupPolicy": "allowlist"
+    }
+  }
+}

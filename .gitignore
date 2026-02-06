@@ -1,0 +1,28 @@
+# Ignore sensitive files
+*.key
+*.pem
+*.password
+*.secret
+.env
+
+# Ignore OpenClaw credentials
+credentials/
+*.json.backup
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore node_modules
+node_modules/
+
+# Ignore logs
+*.log
+logs/
