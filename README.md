@@ -1,144 +1,223 @@
-# OpenClaw 节点配置工具
+# OpenClaw Node 配置指南
 
-用于配置 OpenClaw 节点的一站式工具包，支持 Tailscale 网络和安全白名单。
+> 本文档描述如何通过 Tailscale 将 Linux 服务器配置为 OpenClaw Gateway 的 Node。
 
-## 功能特性
+## 架构概览
 
-- 🔐 **默认安全**：使用白名单模式限制可执行命令
-- 🌐 **Tailscale 集成**：节点间加密 VPN 连接
-- 🤖 **自动化配置**：一键配置节点
-- 🔧 **Systemd 支持**：持久连接，自动重启
-- 🛡️ **Windows 防火墙**：自动配置防火墙规则
+```
+┌─────────────────┐                      ┌─────────────────┐
+│ Windows (Gateway)│  Tailscale Mesh VPN  │  Linux (Node)   │
+│  - Gateway       │  <=================> │  - Node Runner  │
+│  - Central Brain │    (WireGuard)       │  - Executor     │
+└─────────────────┘                      └─────────────────┘
+```
 
-## 快速开始
+## 前置要求
 
-### 前置要求
+1. Windows 机器上已安装并运行 OpenClaw Gateway
+2. Linux 服务器上已安装 OpenClaw CLI (`npm install -g openclaw`)
+3. Windows 和 Linux 都已加入同一个 Tailscale 网络
+4. 确认双方可以互相 ping 通（通过 Tailscale IP 或 MagicDNS）
 
-1. Windows/macOS/Linux 上安装 OpenClaw Gateway
-2. 网关和节点都安装 Tailscale
-3. 节点上安装 OpenClaw CLI
+## 配置步骤
 
-### 安装
+### 步骤 1：配置 Windows Gateway (Serve 模式)
+
+编辑 `~/.openclaw/openclaw.json`：
+
+```json5
+{
+  gateway: {
+    mode: "local",
+    bind: "loopback",        // 必须：只监听本地，通过 Tailscale Serve 暴露
+    port: 18789,
+    
+    auth: {
+      mode: "token",
+      token: "<YOUR_GATEWAY_TOKEN>",  // 替换为强密码
+      allowTailscale: true             // 允许 Tailscale 网络身份验证
+    },
+    
+    tailscale: {
+      mode: "serve",         // 启用 Tailscale Serve
+      resetOnExit: false
+    },
+    
+    nodes: {
+      allowCommands: ["*"]   // 允许 Node 执行所有命令
+    }
+  }
+}
+```
+
+**启动 Gateway：**
+```powershell
+openclaw gateway restart
+
+# 验证 Serve 状态
+tailscale serve status
+# 应显示：https://<YOUR_TAILSCALE_HOST>.ts.net (tailnet only)
+#          |-- / proxy http://127.0.0.1:18789
+```
+
+### 步骤 2：配置 Linux Node
+
+#### 方法 A：使用环境变量（推荐）
 
 ```bash
-# 克隆仓库
-git clone https://github.com/mathhyphen/openclaw-node-skill.git
+# 设置环境变量
+export OPENCLAW_GATEWAY_TOKEN="<YOUR_GATEWAY_TOKEN>"
 
-# 或作为 OpenClaw skill 安装
-openclaw skills install github.com/mathhyphen/openclaw-node-skill
+# 启动 Node
+openclaw node run \
+  --host <YOUR_TAILSCALE_HOST>.ts.net \
+  --port 443 \
+  --tls \
+  --display-name "<NODE_NAME>"
 ```
 
-### 配置步骤
+#### 方法 B：使用配置文件
 
-1. **配置 Windows 防火墙**（在网关上）：
+创建 `~/.openclaw/node.json`：
+
+```json
+{
+  "version": 1,
+  "displayName": "<NODE_NAME>",
+  "gateway": {
+    "host": "<YOUR_TAILSCALE_HOST>.ts.net",
+    "port": 443,
+    "tls": true
+  }
+}
+```
+
+**注意：** `node.json` 不会自动读取 token，仍需设置环境变量或 CLI 参数。
+
+### 步骤 3：配对批准
+
+1. 在 Linux 上执行 `openclaw node run` 后，会显示 `pairing required`
+2. 在 Windows Gateway 上查看待批准请求：
    ```powershell
-   # 以管理员身份运行
-   .\scripts\configure-firewall.ps1
+   openclaw devices list
+   # 或
+   openclaw nodes pending
+   ```
+3. 批准 Node：
+   ```powershell
+   openclaw devices approve <REQUEST_ID>
+   ```
+4. 验证连接：
+   ```powershell
+   openclaw nodes status
+   # 应显示：paired · connected
    ```
 
-2. **运行节点配置**（在 Linux 服务器上）：
-   ```bash
-   bash scripts/setup-node.sh
-   ```
+### 步骤 4：配置执行权限（关键）
 
-3. **验证连接**：
-   节点应该显示为已连接状态。
+Node 默认有安全沙箱，需要显式授权才能执行命令。
 
-## 仓库结构
+在 **Linux Node** 上执行：
 
-```
-openclaw-node-setup/
-├── README.md                          # 主文档
-├── README_EN.md                       # 英文文档
-├── SKILL.md                           # OpenClaw skill 定义
-├── LICENSE                            # MIT 许可证
-├── .gitignore                         # Git 忽略规则
-├── scripts/
-│   ├── setup-node.sh                 # Linux 节点配置脚本
-│   └── configure-firewall.ps1        # Windows 防火墙配置
-└── examples/
-    ├── gateway-config.example.json   # 网关配置示例
-    └── node-allowlist.example.json   # 节点白名单示例
+```bash
+# 创建执行权限配置文件
+mkdir -p ~/.openclaw
+cat > ~/.openclaw/exec-approvals.json << 'EOF'
+{
+  "version": 1,
+  "defaults": {
+    "security": "full",
+    "ask": "off"
+  }
+}
+EOF
 ```
 
-## 安全注意事项
+**安全级别说明：**
+- `security: "deny"` - 拒绝所有命令
+- `security: "allowlist"` - 只允许白名单命令
+- `security: "full"` - 允许所有命令（Node 模式下推荐）
 
-⚠️ **重要**：本工具配置远程命令执行，请务必：
+### 步骤 5：设置开机自启（可选）
 
-1. **使用 Tailscale 或 VPN**：不要将 OpenClaw Gateway 直接暴露到公网
-2. **强密码**：为网关认证使用随机生成的强密码
-3. **白名单模式**：保持 `security: "allowlist"` 以限制可执行命令
-4. **文件权限**：确保 `exec-approvals.json` 设置为 `chmod 600`
-5. **定期审计**：定期运行 `openclaw security audit`
+创建 systemd 服务 `/etc/systemd/system/openclaw-node.service`：
 
-## 配置说明
+```ini
+[Unit]
+Description=OpenClaw Node
+After=network-online.target tailscaled.service
+Wants=network-online.target
 
-### 网关配置
+[Service]
+Type=simple
+User=<USERNAME>
+Environment="OPENCLAW_GATEWAY_TOKEN=<YOUR_GATEWAY_TOKEN>"
+Environment="PATH=<NODE_PATH>:/usr/local/bin:/usr/bin:/bin"
+ExecStart=<OPENCLAW_PATH> node run \
+  --host <YOUR_TAILSCALE_HOST>.ts.net \
+  --port 443 \
+  --tls \
+  --display-name "<NODE_NAME>"
+Restart=always
+RestartSec=10
 
-查看 `examples/gateway-config.example.json` 获取最小安全配置。
-
-关键设置：
-- `bind: "lan"` - 监听所有接口（配合 Tailscale 使用）
-- `auth.mode: "password"` - 基于密码的认证
-- `tools.exec.host: "node"` - 允许节点命令执行
-- `tools.exec.security: "allowlist"` - 强制执行命令白名单
-
-### 节点白名单
-
-查看 `examples/node-allowlist.example.json` 获取完整的白名单示例。
-
-白名单特点：
-- 允许常用系统命令（`ls`, `cat`, `ps`, `df` 等）
-- 允许开发工具（`git`, `docker`, `python3` 等）
-- 阻止危险命令（`rm`, `dd`, `mkfs` 等在 `/sbin` 中，不允许）
-
-## 故障排除
-
-### 连接被拒绝 (ECONNREFUSED)
-
-**原因**：Windows 防火墙阻止连接
-
-**解决**：
-```powershell
-netsh advfirewall firewall add rule name="OpenClaw" dir=in action=allow protocol=TCP localport=18789
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 命令执行被拒绝
+启用服务：
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable openclaw-node.service
+sudo systemctl start openclaw-node.service
+```
 
-**原因**：命令不在白名单中或白名单文件不存在
+## 故障排查
 
-**解决**：
-1. 验证节点上存在 `~/.openclaw/exec-approvals.json`
-2. 检查命令路径是否在白名单中
-3. 确保文件权限正确：`chmod 600 ~/.openclaw/exec-approvals.json`
+### 错误：400 Bad Request
 
-### 节点显示离线
+**原因：** Token 未正确传递
 
-**检查清单**：
-- [ ] Tailscale 双方已连接（`tailscale status`）
-- [ ] 网关正在运行（`openclaw status`）
-- [ ] 端口正在监听（`netstat -ano | findstr 18789`）
-- [ ] 密码正确
-- [ ] Linux 节点有网络访问
+**解决：** 确保设置了 `OPENCLAW_GATEWAY_TOKEN` 环境变量或使用 `--token` 参数
 
-## 贡献指南
+### 错误：pairing required
 
-欢迎贡献！请：
-1. Fork 本仓库
-2. 创建功能分支
-3. 提交更改
-4. 提交 Pull Request
+**原因：** Node 未在 Gateway 上批准
 
-## 许可证
+**解决：** 在 Windows 上执行 `openclaw devices approve <ID>`
 
-MIT 许可证 - 详情见 [LICENSE](LICENSE) 文件。
+### 错误：SYSTEM_RUN_DENIED: allowlist miss
 
-## 参考资料
+**原因：** Node 未配置执行权限
 
-- [OpenClaw 文档](https://docs.openclaw.ai)
-- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
-- [Tailscale 文档](https://tailscale.com/kb)
+**解决：** 在 Linux 上创建 `~/.openclaw/exec-approvals.json`，设置 `security: "full"`
 
-## 免责声明
+### 错误：ECONNREFUSED
 
-本工具按原样提供，用于教育和生产力目的。作者不对因配置错误导致的安全事件负责。请始终遵循安全最佳实践并保持系统更新。
+**原因：** 无法连接到 Gateway
+
+**解决：**
+1. 检查 Tailscale 状态：`tailscale status`
+2. 检查 Gateway 是否运行：`openclaw gateway status`
+3. 检查防火墙是否放行
+
+## 安全最佳实践
+
+1. **Token 管理：** 使用强密码，定期更换
+2. **网络隔离：** 利用 `allowTailscale: true` 限制只有 Tailscale 网络可访问
+3. **权限最小化：** 生产环境建议使用 `allowlist` 而非 `full` 权限
+4. **日志审计：** 定期检查 `~/.openclaw/logs/` 目录
+
+## 资源占用
+
+Node 进程资源消耗极低：
+- CPU: ~0.1-0.5% (空闲时)
+- 内存: ~50-100 MB
+- 网络: ~1-5 KB/s (维持心跳)
+
+适合长期运行在服务器上。
+
+## 参考
+
+- OpenClaw 官方文档: https://docs.openclaw.ai
+- Tailscale Serve: https://tailscale.com/kb/1242/tailscale-serve
